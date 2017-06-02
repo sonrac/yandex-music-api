@@ -3,14 +3,14 @@
 Install
 
 ```bash
-composer require sonrac/yandex-music 
+composer require sonrac/yandex-music-api 
 ```
 
 or add to your `composer.json` to `require` section
 
 ```json
 {
-  "sonrac/yandex-music": "1.0"
+  "sonrac/yandex-music-api": "1.0"
 }
 ```
 

@@ -20,8 +20,6 @@ use sonrac\YandexMusic\Helpers\IConfig;
  */
 class Yandex
 {
-    protected $_deviceConfig;
-
     /**
      * @var IConfig
      *
@@ -55,40 +53,84 @@ class Yandex
     protected $_proxy;
 
     /**
+     * Cache path for save token in storage
+     *
+     * @var null|string
+     *
+     * @author Donii Sergii <doniysa@gmail.com>
+     */
+    protected $_cachePath = null;
+
+    /**
      * Yandex music api constructor.
      *
      * @param string $username
      * @param string $password
      * @param bool   $useProxy
+     * @param string $cachePath
      *
      * @author Donii Sergii <doniysa@gmail.com>
      */
-    public function __construct($username, $password, $useProxy = false)
+    public function __construct($username, $password, $useProxy = false, $cachePath = __DIR__ . '/cache-data')
     {
         $this->config = require __DIR__ . "/config.php";
 
         if ($useProxy) {
-            $client = new Client('https://gimmeproxy.com');
+            $client = new Client('https://gimmeproxy.com', [
+                'timeout' => 1,
+            ]);
             do {
                 try {
                     $proxy = $client->get('api/getProxy')->send()->json();
-                    $client->get('', null, ['proxy' => $proxy['curl']])->send()->getBody();
+                    $client->get('', null, [
+                        'proxy'   => $proxy['curl'],
+                        'timeout' => 1,
+                    ])->send()->getBody();
                     $this->_proxy = $proxy['curl'];
                     break;
-            } catch (\Exception $exception) {
+                } catch (\Exception $exception) {
                 }
-            } while ($this->_proxy);
+            } while (true);
         }
 
-        $this->client = new Client('https://api.music.yandex.net', []);
+        $this->client = new Client('https://api.music.yandex.net', [
+            'timeout' => 60,
+        ]);
+
+        $this->_cachePath = $cachePath;
 
         $this->_cookie = new Cookie();
 
         $this->config->user->USERNAME = $username;
         $this->config->user->PASSWORD = $password;
 
+        $this->restoreTokenFromCache();
 
-        $this->getToken();
+        if (!$this->config->user->TOKEN) {
+            $this->getToken();
+        }
+    }
+
+    /**
+     * Restore token for current user from cache
+     *
+     * @author Donii Sergii <doniysa@gmail.com>
+     */
+    protected function restoreTokenFromCache()
+    {
+        if (file_exists($file = $this->_cachePath . "/{$this->config->user->USERNAME}.json")) {
+
+            $createTime = filemtime($file);
+
+            $data = json_decode(file_get_contents($file), true);
+
+            if ((time() - $createTime) > $data['token_expire']) {
+                return;
+            }
+
+            $this->config->user->TOKEN = $data['token'];
+            $this->config->user->TOKEN_EXPIRE = $data['token_expire'];
+        }
     }
 
     /**
@@ -104,15 +146,11 @@ class Yandex
      */
     protected function _prepareRequest(string $url, array $data = [], string $method = 'get')
     {
-        if ($this->config->user->TOKEN_EXPIRE < time()) { // Refresh token if needed
-            $this->getToken();
-        }
-
         $_data = $method == 'get' ? null : $data;
 
         $options = [
             $url,
-            $this->getAuthHeaders()
+            $this->getAuthHeaders(),
         ];
 
         $requestOptions = [];
@@ -152,7 +190,7 @@ class Yandex
                 'device_id'    => $this->config->fake_device->DEVICE_ID,
                 'device_uuid'  => $this->config->fake_device->UUID,
                 'package_name' => $this->config->fake_device->PACKAGE_NAME,
-            ]
+            ],
         ];
 
         if ($this->_proxy) {
@@ -180,6 +218,11 @@ class Yandex
 
         $this->config->user->TOKEN = $resp['access_token'];
         $this->config->user->TOKEN_EXPIRE = $resp['expires_in'];
+
+        file_put_contents($this->_cachePath . "{$this->config->user->USERNAME}.json", json_encode([
+            'token'        => $this->config->user->TOKEN,
+            'token_expire' => $this->config->user->TOKEN_EXPIRE,
+        ]));
     }
 
     /**
@@ -192,14 +235,14 @@ class Yandex
     public function getAuthHeaders(): array
     {
         return [
-            'Authorization' => "OAuth {$this->config->user->TOKEN}",
+            'Authorization'   => "OAuth {$this->config->user->TOKEN}",
             'Accept Language' => 'en-US,en;q=0.8',
             'Accept Encoding' => 'gzip, deflate, sdch, br',
-            'Accept' => '*/*',
-            'Postman Token' => '0602916c-c9be-3364-8938-6b4f5426539e',
-            'User Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
-            'Cache Control' => 'no-cache',
-            'Connection' => 'keep-alive',
+            'Accept'          => '*/*',
+            'Postman Token'   => '0602916c-c9be-3364-8938-6b4f5426539e',
+            'User Agent'      => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+            'Cache Control'   => 'no-cache',
+            'Connection'      => 'keep-alive',
         ];
     }
 
@@ -391,7 +434,7 @@ class Yandex
      * POST: /users/[user_id]/playlists/[playlist_kind]/change-relative
      * Remove tracks from the playlist
      *
-     * @param string $playlistKind The playlist's ID
+     * @param string $playlistKind Th   e playlist's ID
      * @param array  $tracks       An array of objects containing a track info:
      *                             track id and album id for the track.
      *                             Example: [{id:'20599729', albumId:'2347459'}]
