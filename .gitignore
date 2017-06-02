@@ -1,0 +1,6 @@
+!.gitignore
+vendor/
+/*.txt
+/*.php
+composer.lock
+.idea/

@@ -1,0 +1,28 @@
+{
+  "name": "sonrac/yandex-music-api",
+  "description": "Yandex Music Api wrapper",
+  "keywords": [
+    "Yandex",
+    "Yandex Music",
+    "Yandex API",
+    "Yandex Music Api",
+    "Yandex Music Api Php",
+    "Yandex Api Php",
+    "Yandex Music Api Wrapper Php"
+  ],
+  "authors": [
+    {
+      "name": "Donii Sergii",
+      "email": "doniysa@gmail.com",
+      "role": "developer"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "sonrac\\YandexMusic\\": "src"
+    }
+  },
+  "require": {
+    "guzzle/guzzle": "^3.9"
+  }
+}
